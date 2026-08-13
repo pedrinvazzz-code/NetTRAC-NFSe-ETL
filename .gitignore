@@ -1,0 +1,17 @@
+# Dados reais de notas fiscais (CNPJ, cliente, valor) nunca vao pro repo
+xmls/*.xml
+notas_extraidas.csv
+
+# Certificado digital e credenciais
+.env
+*.pfx
+*.p12
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# SO
+.DS_Store
