@@ -59,7 +59,3 @@ notas-fiscais-etl/
 ## Sobre os dados
 
 Esse repositório não contém nenhuma nota fiscal real da NetTRAC. A pasta `xmls/` e o CSV gerado pelo script estão no `.gitignore` porque contêm CNPJ, nome de cliente e valores reais da empresa. O arquivo em `docs/exemplo-nota-anonimizada.xml` documenta a estrutura do XML com dados fictícios. Como é dado de empresa e não projeto pessoal, o acesso e a permissão pra usar essas informações, inclusive pra fins de portfólio, já estavam alinhados antes de qualquer coisa ir pro repositório.
-
-## Próximos passos
-
-Conectar o banco a um dashboard (Power BI ou Metabase) pra visualizar faturamento por cliente e sazonalidade é a evolução natural, seguindo a mesma lógica que já apliquei em outro projeto meu de ETL (Cairo Bikes). Validar o fluxo automático contra a produção restrita da API, confirmando os nomes de campo reais, é o próximo passo técnico imediato.
