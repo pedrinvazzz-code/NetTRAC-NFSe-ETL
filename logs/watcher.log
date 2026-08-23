@@ -1,0 +1,16 @@
+2026-08-23 18:48:45  INFO      ============================================================
+2026-08-23 18:48:45  INFO      🟢 NetTRAC NF Watcher iniciado.
+2026-08-23 18:48:45  INFO         Monitorando PDFs : C:\Users\Pichau\Downloads\notas-fiscais-etl-pdf-suporte\notas-fiscais-etl\pdfs
+2026-08-23 18:48:45  INFO         Monitorando XMLs : C:\Users\Pichau\Downloads\notas-fiscais-etl-pdf-suporte\notas-fiscais-etl\xmls
+2026-08-23 18:48:45  INFO         Log              : C:\Users\Pichau\Downloads\notas-fiscais-etl-pdf-suporte\notas-fiscais-etl\logs\watcher.log
+2026-08-23 18:48:45  INFO         Pressione Ctrl+C para encerrar.
+2026-08-23 18:48:45  INFO      ============================================================
+2026-08-23 18:48:52  INFO      Encerrando watcher...
+2026-08-23 18:48:52  INFO      🔴 Watcher encerrado.
+2026-08-23 18:49:40  INFO      ============================================================
+2026-08-23 18:49:40  INFO      🟢 NetTRAC NF Watcher iniciado.
+2026-08-23 18:49:40  INFO         Monitorando PDFs : C:\Users\Pichau\Downloads\notas-fiscais-etl-pdf-suporte\notas-fiscais-etl\pdfs
+2026-08-23 18:49:40  INFO         Monitorando XMLs : C:\Users\Pichau\Downloads\notas-fiscais-etl-pdf-suporte\notas-fiscais-etl\xmls
+2026-08-23 18:49:40  INFO         Log              : C:\Users\Pichau\Downloads\notas-fiscais-etl-pdf-suporte\notas-fiscais-etl\logs\watcher.log
+2026-08-23 18:49:40  INFO         Pressione Ctrl+C para encerrar.
+2026-08-23 18:49:40  INFO      ============================================================

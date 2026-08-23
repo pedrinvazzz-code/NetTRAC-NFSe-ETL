@@ -3,3 +3,5 @@ python-dotenv==1.0.1
 supabase==2.9.1
 requests-pkcs12==1.25
 PyMuPDF==1.26.3
+watchdog==4.0.0
+plyer==2.1.0

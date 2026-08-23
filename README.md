@@ -30,9 +30,21 @@ Um ponto de honestidade técnica: os nomes exatos dos campos no JSON de resposta
 
 ## Stack
 
-- Python (lxml pra parsing do XML, PyMuPDF pra extração dos PDFs, requests-pkcs12 pra autenticação mTLS com certificado)
+- Python (`lxml` pra parsing do XML, `PyMuPDF` pra extração dos PDFs, `requests-pkcs12` pra autenticação mTLS com certificado, `watchdog` pra monitoramento de pasta em tempo real)
 - PostgreSQL via Supabase
-- python-dotenv pra gerenciar credenciais
+- `python-dotenv` pra gerenciar credenciais
+
+## Três jeitos de alimentar o pipeline
+
+O projeto evoluiu em três etapas.
+
+**Fluxo manual batch** (`scripts/importar_notas.py`): lê todos os XMLs e PDFs presentes nas pastas de uma vez. Simples, funciona sem nada extra, mas depende de alguém rodar o script.
+
+**Fluxo automático via watcher** (`scripts/watcher.py`): monitora as pastas `pdfs/` e `xmls/` em tempo real. Basta salvar o arquivo — o resto acontece sozinho em menos de 2 segundos. Inicia automaticamente com o Windows após rodar `instalar_servico.bat` uma vez. É o fluxo recomendado para uso no dia a dia.
+
+**Fluxo via API** (`scripts/sincronizar_api.py`): busca as notas direto na API de Distribuição do ADN (Ambiente de Dados Nacional), autenticando via mTLS com o certificado digital e-CNPJ da empresa. O cursor de sincronização (NSU) fica salvo no próprio banco, então cada execução processa só o que é novo.
+
+Os três fluxos compartilham o mesmo parser (`scripts/parser_nfse.py`), garantindo que o dado final é idêntico não importa por qual caminho ele entrou.
 
 ## Estrutura do repositório
 
@@ -43,19 +55,49 @@ notas-fiscais-etl/
 ├── scripts/
 │   ├── parser_nfse.py                 # parser do XML
 │   ├── parser_nfse_pdf.py             # parser do DANFSe em PDF
-│   ├── importar_notas.py              # fluxo manual: lê XMLs e PDFs
+│   ├── watcher.py                     # monitora pdfs/ e xmls/ em tempo real
+│   ├── processar_arquivo.py           # processa um único arquivo (usado pelo watcher)
+│   ├── importar_notas.py              # fluxo batch manual: lê XMLs e PDFs de uma vez
 │   └── sincronizar_api.py             # fluxo automático: busca via API + certificado
 ├── sql/
-│   └── schema.sql                     # criação das tabelas no banco
-├── xmls/                              # onde os XMLs baixados ficam (não versionado)
-├── pdfs/                              # onde os DANFSe em PDF ficam (não versionado)
+│   ├── schema.sql                     # criação das tabelas no banco
+│   └── queries.sql                    # consultas de análise prontas pra rodar no Supabase
+├── xmls/                              # XMLs baixados (não versionado)
+│   ├── processados/                   # XMLs processados com sucesso
+│   └── erros/                         # XMLs que falharam no processamento
+├── pdfs/                              # DANFSe em PDF (não versionado)
+│   ├── processados/                   # PDFs processados com sucesso
+│   └── erros/                         # PDFs que falharam no processamento
+├── logs/
+│   └── watcher.log                    # histórico completo de processamentos
 ├── docs/
 │   └── exemplo-nota-anonimizada.xml   # estrutura do XML, com dados fictícios
+├── instalar_servico.bat               # instalador: roda uma vez, configura tudo
+├── iniciar_watcher.bat                # inicia o watcher manualmente
 ├── requirements.txt
 ├── .env.example
 └── .gitignore
 ```
 
+## Queries SQL disponíveis
+
+O arquivo `sql/queries.sql` contém 8 consultas prontas pra rodar no SQL Editor do Supabase:
+
+| # | Query | O que mostra |
+|---|---|---|
+| 1 | Faturamento mensal | Receita total por mês |
+| 2 | Faturamento anual | Receita total por ano |
+| 3 | Ranking de clientes | Clientes que mais geraram receita |
+| 4 | Clientes por mês | Série histórica por cliente |
+| 5 | Por categoria de serviço | GPS/Antena, Sensor, Instalação etc. com % do total |
+| 6 | ISS apurado por mês | Estimativa de ISS a recolher (alíquota 5%) |
+| 7 | Notas pendentes | Notas ainda não pagas, com dias em aberto |
+| 8 | Painel resumo | Totais gerais: notas, clientes, faturamento, a receber |
+
 ## Sobre os dados
 
-Esse repositório não contém nenhuma nota fiscal real da NetTRAC. A pasta `xmls/` e o CSV gerado pelo script estão no `.gitignore` porque contêm CNPJ, nome de cliente e valores reais da empresa. O arquivo em `docs/exemplo-nota-anonimizada.xml` documenta a estrutura do XML com dados fictícios. Como é dado de empresa e não projeto pessoal, o acesso e a permissão pra usar essas informações, inclusive pra fins de portfólio, já estavam alinhados antes de qualquer coisa ir pro repositório.
+Esse repositório não contém nenhuma nota fiscal real da NetTRAC. A pasta `xmls/`, `pdfs/` e o CSV gerado pelo script estão no `.gitignore` porque contêm CNPJ, nome de cliente e valores reais da empresa. O arquivo em `docs/exemplo-nota-anonimizada.xml` documenta a estrutura do XML com dados fictícios. Como é dado de empresa e não projeto pessoal, o acesso e a permissão pra usar essas informações, inclusive pra fins de portfólio, já estavam alinhados antes de qualquer coisa ir pro repositório.
+
+## Próximos passos
+
+Conectar o banco a um dashboard (Power BI ou Metabase) pra visualizar faturamento por cliente e sazonalidade é a evolução natural — as queries em `sql/queries.sql` já estão prontas pra isso. Validar o fluxo automático via API contra o ambiente de produção restrito, confirmando os nomes de campo reais, é o próximo passo técnico imediato.
