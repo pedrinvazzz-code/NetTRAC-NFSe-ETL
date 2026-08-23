@@ -1,14 +1,8 @@
--- ============================================================
--- Queries de análise — NFS-e NetTRAC
--- Rodar no SQL Editor do Supabase (ou qualquer Postgres)
--- ============================================================
+ Queries de análise — NFS-e NetTRAC
 
 
--- ============================================================
 -- 1. FATURAMENTO MENSAL
---    Receita total emitida por mês, em ordem cronológica.
--- ============================================================
-
+-- Receita total emitida por mês, em ordem cronológica.
 select
     to_char(competencia, 'YYYY-MM')   as mes,
     count(*)                           as qtd_notas,
@@ -18,11 +12,9 @@ where status = 'ativa'
 group by mes
 order by mes;
 
-
--- ============================================================
 -- 2. FATURAMENTO ANUAL
---    Receita total emitida por ano.
--- ============================================================
+-- Receita total emitida por ano.
+
 
 select
     extract(year from competencia)::int  as ano,
@@ -33,11 +25,8 @@ where status = 'ativa'
 group by ano
 order by ano;
 
-
--- ============================================================
 -- 3. FATURAMENTO POR CLIENTE (ranking)
---    Quais clientes geraram mais receita no total.
--- ============================================================
+-- Quais clientes geraram mais receita no total.
 
 select
     t.razao_social                          as cliente,
@@ -52,10 +41,8 @@ group by t.id, t.razao_social, t.cpf_cnpj
 order by faturamento_total desc;
 
 
--- ============================================================
 -- 4. FATURAMENTO POR CLIENTE POR MÊS
---    Série histórica de receita de cada cliente.
--- ============================================================
+-- Série histórica de receita de cada cliente.
 
 select
     to_char(n.competencia, 'YYYY-MM')   as mes,
@@ -69,10 +56,8 @@ group by mes, t.id, t.razao_social
 order by mes, faturamento desc;
 
 
--- ============================================================
 -- 5. FATURAMENTO POR CATEGORIA DE SERVIÇO
---    Quais tipos de serviço geram mais receita.
--- ============================================================
+-- Quais tipos de serviço geram mais receita.
 
 select
     coalesce(categoria_servico, 'Sem categoria')   as categoria,
@@ -86,11 +71,8 @@ group by categoria
 order by faturamento_total desc;
 
 
--- ============================================================
 -- 6. ISS APURADO POR MÊS
---    Estimativa de ISS a recolher (alíquota 5% padrão).
---    Ajuste a alíquota conforme o município, se necessário.
--- ============================================================
+-- Estimativa de ISS a recolher (alíquota 5% padrão).
 
 select
     to_char(competencia, 'YYYY-MM')       as mes,
@@ -102,10 +84,8 @@ group by mes
 order by mes;
 
 
--- ============================================================
 -- 7. NOTAS PENDENTES DE PAGAMENTO
 --    Notas emitidas que ainda não foram pagas.
--- ============================================================
 
 select
     n.numero,
@@ -122,11 +102,8 @@ where n.status = 'ativa'
   and n.status_pagamento = 'Pendente'
 order by n.competencia;
 
-
--- ============================================================
 -- 8. RESUMO GERAL
---    Painel rápido: totais consolidados de todo o histórico.
--- ============================================================
+-- Painel rápido: totais consolidados de todo o histórico.
 
 select
     count(*)                                     as total_notas,
