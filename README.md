@@ -1,5 +1,7 @@
 ![NetTRAC Rastreadores](assets/logo.png)
 
+![Dashboard NetTRAC](assets/dashboard.png)
+
 # Pipeline de Notas Fiscais (NFS-e) — NetTRAC
 
 ## O problema
