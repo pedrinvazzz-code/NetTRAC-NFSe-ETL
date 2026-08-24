@@ -1,7 +1,5 @@
 ![NetTRAC Rastreadores](assets/logo.png)
 
-![Dashboard NetTRAC](assets/dashboard.png)
-
 # Pipeline de Notas Fiscais (NFS-e) — NetTRAC
 
 ## O problema
@@ -95,6 +93,16 @@ O arquivo `sql/queries.sql` contém 8 consultas prontas pra rodar no SQL Editor 
 | 6 | ISS apurado por mês | Estimativa de ISS a recolher (alíquota 5%) |
 | 7 | Notas pendentes | Notas ainda não pagas, com dias em aberto |
 | 8 | Painel resumo | Totais gerais: notas, clientes, faturamento, a receber |
+
+## Resultado Final: Visualização no Power BI
+
+O principal objetivo de construir esse pipeline de dados no Postgres (Supabase) era tirar os dados do portal da prefeitura e permitir a criação de painéis visuais para a gestão da empresa.
+
+Abaixo está o wireframe visual do dashboard construído consumindo diretamente os dados tratados por este ETL. Ele responde instantaneamente perguntas como faturamento total, ticket médio e sazonalidade de clientes, coisas que antes eram inviáveis.
+
+*(Os dados da imagem abaixo foram ofuscados para fins de portfólio e privacidade da empresa)*
+
+![Wireframe do Dashboard NetTRAC no Power BI](assets/dashboard.png)
 
 ## Sobre os dados
 
