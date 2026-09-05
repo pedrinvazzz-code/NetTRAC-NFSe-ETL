@@ -53,17 +53,26 @@ def _notificar(titulo: str, mensagem: str) -> None:
 # ============================================================
 
 def _mover(caminho: Path, destino_subdir: str) -> None:
-    """Move o arquivo para subpasta dentro do mesmo diretório pai."""
-    destino = caminho.parent / destino_subdir
+    """Move o arquivo para subpasta correspondente (processados ou erros)."""
+    caminho_resolvido = caminho.resolve()
+    pasta_base = caminho_resolvido.parent
+    while pasta_base.name in ("processados", "erros"):
+        pasta_base = pasta_base.parent
+
+    destino = (pasta_base / destino_subdir).resolve()
     destino.mkdir(parents=True, exist_ok=True)
-    destino_final = destino / caminho.name
+    destino_final = destino / caminho_resolvido.name
 
     # Se já existir um arquivo com mesmo nome no destino, adiciona sufixo
     if destino_final.exists():
-        destino_final = destino / f"{caminho.stem}_dup{caminho.suffix}"
+        destino_final = destino / f"{caminho_resolvido.stem}_dup{caminho_resolvido.suffix}"
 
-    shutil.move(str(caminho), str(destino_final))
-    logger.info(f"Arquivo movido para: {destino_final.relative_to(BASE_DIR)}")
+    shutil.move(str(caminho_resolvido), str(destino_final))
+    try:
+        rel = destino_final.relative_to(BASE_DIR.resolve())
+    except ValueError:
+        rel = destino_final
+    logger.info(f"Arquivo movido para: {rel}")
 
 
 # ============================================================

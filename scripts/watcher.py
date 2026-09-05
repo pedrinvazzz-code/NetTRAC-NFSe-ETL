@@ -58,9 +58,45 @@ from processar_arquivo import processar
 
 EXTENSOES_SUPORTADAS = {".pdf", ".xml"}
 
-# Segundos de espera após detectar o arquivo.
-# Evita ler um PDF que ainda está sendo salvo (cópia lenta, rede, etc.)
-DELAY_LEITURA = 1.5
+
+def _aguardar_arquivo_pronto(caminho: Path, timeout: float = 12.0, intervalo: float = 0.5) -> bool:
+    """
+    Aguarda até que o arquivo seja completamente gravado e liberado pelo sistema operacional.
+    Evita erros de 'Permission denied' causados por locks exclusivos do Windows, antivírus
+    ou navegadores ainda finalizando o download/cópia.
+    """
+    inicio = time.time()
+    tamanho_anterior = -1
+
+    # Espera mínima inicial para o processo de cópia/download se iniciar
+    time.sleep(1.0)
+
+    while time.time() - inicio < timeout:
+        if not caminho.exists():
+            return False
+
+        try:
+            # Testa abertura para leitura e escrita (append) para detectar lock exclusivo do Windows
+            with open(caminho, "rb"):
+                pass
+            with open(caminho, "ab"):
+                pass
+
+            tamanho_atual = caminho.stat().st_size
+            if tamanho_atual > 0 and tamanho_atual == tamanho_anterior:
+                return True
+            tamanho_anterior = tamanho_atual
+        except (PermissionError, OSError):
+            pass
+
+        time.sleep(intervalo)
+
+    # Verificação final
+    try:
+        with open(caminho, "rb"):
+            return caminho.stat().st_size > 0
+    except (PermissionError, OSError):
+        return False
 
 
 class NFeHandler(FileSystemEventHandler):
@@ -87,8 +123,12 @@ class NFeHandler(FileSystemEventHandler):
 
         logger.info(f"📄 Arquivo detectado: {p.name}")
 
-        # Pequena pausa para garantir que o arquivo foi gravado por completo
-        time.sleep(DELAY_LEITURA)
+        # Aguarda estabilização do tamanho e liberação de locks pelo sistema
+        pronto = _aguardar_arquivo_pronto(p)
+        if not pronto:
+            logger.warning(
+                f"⚠️ O arquivo {p.name} ainda pode estar em uso após o tempo de espera. Tentando processar mesmo assim..."
+            )
 
         processar(caminho)
 
