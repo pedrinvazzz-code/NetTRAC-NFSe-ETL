@@ -2,6 +2,11 @@
 
 # Pipeline de Notas Fiscais (NFS-e) — NetTRAC
 
+> **Versão:** 1.2.0  
+> **Última Atualização:** 05 de Setembro de 2026
+
+---
+
 ## O problema
 
 A NetTRAC é especializada em rastreadores veiculares de médio e grande porte. Como qualquer contribuinte no Portal Nacional da NFS-e (nfse.gov.br), a empresa esbarra numa limitação do próprio portal: não existe relatório consolidado nem exportação em lote das notas emitidas. Cada nota só dá pra consultar uma por uma, o que torna inviável qualquer análise de faturamento por cliente, por período ou por tipo de serviço direto pelo site.
@@ -10,41 +15,43 @@ Tive acesso autorizado às notas fiscais da empresa e parti daí pra construir u
 
 ## A solução
 
-O projeto prioriza os XMLs das notas por serem documentos estruturados, mas também suporta os DANFSe em PDF. O parser de PDF extrai os mesmos campos do XML e converte ambos para o mesmo modelo de dados. Isso permite trabalhar com notas quando só o PDF está disponível. Os dados são então organizados em duas tabelas num banco Postgres (Supabase): uma de clientes (`tomadores`) e uma de notas (`notas`), relacionadas entre si. Isso resolve o problema de origem: dá pra consultar faturamento por cliente, sazonalidade, ISS apurado, tudo isso sem depender do portal.
+O projeto prioriza os XMLs das notas por serem documentos estruturados, mas também suporta integralmente os DANFSe em PDF. O parser de PDF extrai os mesmos campos do XML e converte ambos para o mesmo modelo de dados. Isso permite trabalhar com notas quando só o PDF está disponível. Os dados são então organizados em duas tabelas num banco Postgres (Supabase): uma de clientes (`tomadores`) e uma de notas (`notas`), relacionadas entre si. Isso resolve o problema de origem: dá pra consultar faturamento por cliente, sazonalidade, ISS apurado, tudo isso sem depender do portal.
 
 ```
-Portal nfse.gov.br  →  XML/PDF  →  parser Python  →  Postgres (Supabase)  →  Power BI / análise
+Portal nfse.gov.br  →  XML/PDF  →  Parser Python  →  Postgres (Supabase)  →  Power BI Service (Gateway)
 ```
 
-Um detalhe de modelagem que importou: a chave de deduplicação é a `chave_acesso` da nota (identificador único nacional), não o número dela. Isso torna a importação idempotente — rodar o mesmo XML duas vezes nunca duplica registro — o que é essencial num pipeline que vai ser alimentado aos poucos, nota por nota, ao longo do tempo.
-
-## Dois jeitos de alimentar o pipeline
-
-O projeto evoluiu em duas etapas. A primeira versão (`scripts/importar_notas.py`) lê XMLs baixados manualmente do portal — simples, funciona sem certificado digital, mas depende de alguém lembrar de baixar as notas.
-
-A segunda versão (`scripts/sincronizar_api.py`) elimina essa dependência: busca as notas direto na API de Distribuição do ADN (Ambiente de Dados Nacional), autenticando via mTLS com o certificado digital e-CNPJ da empresa. O cursor de sincronização (NSU) fica salvo no próprio banco, então cada execução processa só o que é novo — dá pra rodar num agendador e esquecer que existe.
-
-Os dois fluxos compartilham o mesmo parser (`scripts/parser_nfse.py`), garantindo que o dado final é idêntico não importa por qual caminho ele entrou.
-
-Um ponto de honestidade técnica: os nomes exatos dos campos no JSON de resposta da API foram inferidos a partir da documentação pública do governo, não confirmados ao vivo (o Swagger interativo bloqueia acesso automatizado de ferramentas). O script de sincronização foi construído já prevendo isso — se algum nome de campo não bater, ele avisa claramente e mostra o JSON recebido, em vez de falhar silenciosamente.
+Um detalhe de modelagem que importou: a chave de deduplicação é a `chave_acesso` da nota (identificador único nacional), não o número dela. Isso torna a importação idempotente — rodar o mesmo XML/PDF duas vezes nunca duplica registro — o que é essencial num pipeline que vai sendo alimentado de forma contínua, nota por nota, ao longo do tempo.
 
 ## Stack
 
-- Python (`lxml` pra parsing do XML, `PyMuPDF` pra extração dos PDFs, `requests-pkcs12` pra autenticação mTLS com certificado, `watchdog` pra monitoramento de pasta em tempo real)
-- PostgreSQL via Supabase
-- `python-dotenv` pra gerenciar credenciais
+- **Python 3.11+**:
+  - `lxml`: parsing estruturado dos arquivos XML
+  - `PyMuPDF` (fitz): extração e leitura dos DANFSe em PDF
+  - `watchdog`: monitoramento de pastas em tempo real com eventos de filesystem
+  - `supabase`: cliente Python oficial para integração e upserts no banco de dados
+  - `requests-pkcs12`: autenticação mTLS com certificado digital e-CNPJ (A1)
+  - `python-dotenv`: gerenciamento seguro de variáveis de ambiente
+  - `plyer`: disparador de notificações nativas da área de trabalho do Windows
+- **Banco de Dados**: PostgreSQL gerenciado via Supabase
+- **Business Intelligence**: Power BI Desktop & Power BI Service (com atualização agendada via On-Premises Data Gateway)
 
 ## Três jeitos de alimentar o pipeline
 
-O projeto evoluiu em três etapas.
+O projeto foi desenhado para suportar diferentes níveis de automação operacional:
 
-**Fluxo manual batch** (`scripts/importar_notas.py`): lê todos os XMLs e PDFs presentes nas pastas de uma vez. Simples, funciona sem nada extra, mas depende de alguém rodar o script.
+1. **Fluxo automático em tempo real via Watcher (`scripts/watcher.py`):**
+   Monitora as pastas `pdfs/` e `xmls/` em tempo real. Basta arrastar, colar ou baixar o arquivo na pasta correspondente que o robô detecta, extrai, envia para a nuvem e move o arquivo para `processados/` (ou `erros/` em caso de falha).
+   * **Espera inteligente por liberação de arquivo (`_aguardar_arquivo_pronto`):** Implementa verificação ativa de locks do Windows, antivírus ou navegadores. Se o arquivo estiver sendo gravado no momento da detecção, o watcher aguarda a liberação exclusiva e a estabilização do tamanho antes de abrir, prevenindo falsos erros de `Permission denied`.
+   * **Início automático com o sistema:** Configurado para rodar silenciosamente em segundo plano ao ligar o computador (gerenciado via `instalar_servico.bat`).
 
-**Fluxo automático via watcher** (`scripts/watcher.py`): monitora as pastas `pdfs/` e `xmls/` em tempo real. Basta salvar o arquivo — o resto acontece sozinho em menos de 2 segundos. Inicia automaticamente com o Windows após rodar `instalar_servico.bat` uma vez. É o fluxo recomendado para uso no dia a dia.
+2. **Fluxo automático via API Nacional (`scripts/sincronizar_api.py`):**
+   Busca as notas diretamente na API de Distribuição do ADN (Ambiente de Dados Nacional), autenticando via mTLS com o certificado digital e-CNPJ da empresa. O cursor de sincronização (NSU) fica salvo no próprio Supabase, processando de forma incremental apenas as notas novas.
 
-**Fluxo via API** (`scripts/sincronizar_api.py`): busca as notas direto na API de Distribuição do ADN (Ambiente de Dados Nacional), autenticando via mTLS com o certificado digital e-CNPJ da empresa. O cursor de sincronização (NSU) fica salvo no próprio banco, então cada execução processa só o que é novo.
+3. **Fluxo manual em lote (`scripts/importar_notas.py`):**
+   Lê e processa todos os XMLs e PDFs existentes nas pastas de uma só vez. Útil para cargas históricas ou migrações em lote.
 
-Os três fluxos compartilham o mesmo parser (`scripts/parser_nfse.py`), garantindo que o dado final é idêntico não importa por qual caminho ele entrou.
+Todos os fluxos compartilham os mesmos parsers (`scripts/parser_nfse.py` e `scripts/parser_nfse_pdf.py`), garantindo dados padronizados e idênticos independentemente da origem.
 
 ## Estrutura do repositório
 
@@ -96,18 +103,36 @@ O arquivo `sql/queries.sql` contém 8 consultas prontas pra rodar no SQL Editor 
 
 ## Resultado Final: Visualização no Power BI
 
-O principal objetivo de construir esse pipeline de dados no Postgres (Supabase) era tirar os dados do portal da prefeitura e permitir a criação de painéis visuais para a gestão da empresa.
+O principal objetivo de construir esse pipeline de dados no Postgres (Supabase) era tirar os dados do portal e permitir a criação de painéis visuais automatizados para a tomada de decisão da empresa.
 
-Abaixo está o wireframe visual do dashboard construído consumindo diretamente os dados tratados por este ETL. Ele responde instantaneamente perguntas como faturamento total, ticket médio e sazonalidade de clientes, coisas que antes eram inviáveis.
+O dashboard foi modelado no **Power BI Desktop** e publicado no **Power BI Service**, conectado diretamente ao banco Postgres através do **Microsoft On-Premises Data Gateway** configurado na porta `5432` (Session Mode), com atualizações agendadas automáticas.
+
+Ele responde instantaneamente perguntas como faturamento total, ticket médio e sazonalidade de clientes, coisas que antes eram inviáveis.
 
 *(Os dados da imagem abaixo foram ofuscados para fins de portfólio e privacidade da empresa)*
 
 ![Wireframe do Dashboard NetTRAC no Power BI](assets/dashboard.png)
 
+## Histórico de Versões
+
+* **v1.2.0 (05/09/2026):**
+  - Adicionada detecção inteligente de liberação de arquivos (`_aguardar_arquivo_pronto`) no `watcher.py` para tratar travas de sistema (file lock) e concorrência no Windows.
+  - Correção na resolução de diretórios de arquivos reprocessados em `scripts/processar_arquivo.py`.
+  - Homologação do pipeline de dados com o Power BI Service via On-Premises Data Gateway e agendamento de atualização automática.
+* **v1.1.0 (29/08/2026):**
+  - Suporte completo a parsing de DANFSe em PDF (`parser_nfse_pdf.py`).
+  - Implementação do monitor de diretórios em tempo real (`watcher.py`) e instalador de serviço Windows.
+  - Criação do modelo semântico e dashboard no Power BI Desktop.
+* **v1.0.0 (23/08/2026):**
+  - Implementação inicial da modelagem relacional no Supabase (`schema.sql`).
+  - Parser de XML da NFS-e Nacional (`parser_nfse.py`) e importação batch.
+  - Integração experimental com a API de Distribuição do ADN via mTLS.
+
 ## Sobre os dados
 
-Esse repositório não contém nenhuma nota fiscal real da NetTRAC. A pasta `xmls/`, `pdfs/` e o CSV gerado pelo script estão no `.gitignore` porque contêm CNPJ, nome de cliente e valores reais da empresa. O arquivo em `docs/exemplo-nota-anonimizada.xml` documenta a estrutura do XML com dados fictícios. Como é dado de empresa e não projeto pessoal, o acesso e a permissão pra usar essas informações, inclusive pra fins de portfólio, já estavam alinhados antes de qualquer coisa ir pro repositório.
+Esse repositório não contém nenhuma nota fiscal real da NetTRAC. As pastas `xmls/`, `pdfs/` e arquivos de credenciais estão no `.gitignore` porque contêm CNPJ, nome de cliente e valores reais da empresa. O arquivo em `docs/exemplo-nota-anonimizada.xml` documenta a estrutura do XML com dados fictícios. Como é dado de empresa e não projeto pessoal, o acesso e a permissão pra usar essas informações, inclusive pra fins de portfólio, já estavam alinhados antes de qualquer coisa ir pro repositório.
 
 ## Próximos passos
 
-Conectar o banco a um dashboard (Power BI ou Metabase) pra visualizar faturamento por cliente e sazonalidade é a evolução natural — as queries em `sql/queries.sql` já estão prontas pra isso. Validar o fluxo automático via API contra o ambiente de produção restrito, confirmando os nomes de campo reais, é o próximo passo técnico imediato.
+Validar o fluxo automático via API contra o ambiente de produção restrito da Receita Federal / ADN, confirmando os nomes de campo reais com o certificado digital físico A3/A1 em ambiente corporativo.
+
